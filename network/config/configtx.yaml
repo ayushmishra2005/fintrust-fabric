@@ -1,0 +1,171 @@
+Organizations:
+  - &OrdererOrg
+    Name: OrdererOrg
+    ID: OrdererMSP
+    MSPDir: ../organizations/ordererOrg/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"
+      Writers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"
+      Admins:
+        Type: Signature
+        Rule: "OR('OrdererMSP.admin')"
+    OrdererEndpoints:
+      - orderer.fintrust:7050
+
+  - &SupplierOrg
+    Name: SupplierOrg
+    ID: SupplierMSP
+    MSPDir: ../organizations/supplierOrg/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('SupplierMSP.admin', 'SupplierMSP.peer', 'SupplierMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('SupplierMSP.admin', 'SupplierMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('SupplierMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('SupplierMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.supplier
+        Port: 7051
+
+  - &BuyerOrg
+    Name: BuyerOrg
+    ID: BuyerMSP
+    MSPDir: ../organizations/buyerOrg/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('BuyerMSP.admin', 'BuyerMSP.peer', 'BuyerMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('BuyerMSP.admin', 'BuyerMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('BuyerMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('BuyerMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.buyer
+        Port: 7051
+
+  - &FinanceOrg
+    Name: FinanceOrg
+    ID: FinanceMSP
+    MSPDir: ../organizations/financeOrg/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('FinanceMSP.admin', 'FinanceMSP.peer', 'FinanceMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('FinanceMSP.admin', 'FinanceMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('FinanceMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('FinanceMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.finance
+        Port: 7051
+
+Capabilities:
+  Channel: &ChannelCapabilities
+    V2_0: true
+  Orderer: &OrdererCapabilities
+    V2_0: true
+  Application: &ApplicationCapabilities
+    V2_5: true
+
+Application: &ApplicationDefaults
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+Orderer: &OrdererDefaults
+  OrdererType: etcdraft
+  Addresses:
+    - orderer.fintrust:7050
+  EtcdRaft:
+    Consenters:
+      - Host: orderer.fintrust
+        Port: 7050
+        ClientTLSCert: ../organizations/ordererOrg/orderers/orderer.fintrust/tls/server.crt
+        ServerTLSCert: ../organizations/ordererOrg/orderers/orderer.fintrust/tls/server.crt
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 10
+    AbsoluteMaxBytes: 99 MB
+    PreferredMaxBytes: 512 KB
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+  Capabilities:
+    <<: *ChannelCapabilities
+
+Profiles:
+  FintrustGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *OrdererOrg
+      Capabilities:
+        <<: *OrdererCapabilities
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *SupplierOrg
+        - *BuyerOrg
+        - *FinanceOrg
+      Capabilities:
+        <<: *ApplicationCapabilities
