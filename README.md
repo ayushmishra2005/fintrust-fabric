@@ -27,6 +27,26 @@ make network-down    # Stop containers
 make network-reset   # Stop and remove all generated files
 ```
 
+## Invoice Chaincode
+
+The `invoice` chaincode implements a confidential B2B invoice financing workflow with strict lifecycle state machine:
+
+```
+CREATED → APPROVED → FINANCING_REQUESTED → FINANCED → SETTLED
+       ↘ REJECTED
+```
+
+Private data collections:
+- `collectionInvoiceParties`: Commercial terms and payment details shared between supplier and buyer
+- `collectionSupplierFinance`: Financing request, disclosure, and agreement shared between supplier and financier
+
+Deploy and query chaincode status:
+
+```
+make chaincode-deploy  # Package, install, approve, and commit
+make chaincode-status  # Show installation and commit status
+```
+
 ## Planned Architecture
 
 - Hyperledger Fabric 2.5 LTS

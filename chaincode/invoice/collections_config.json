@@ -1,0 +1,26 @@
+[
+  {
+    "name": "collectionInvoiceParties",
+    "policy": "OR('SupplierMSP.member', 'BuyerMSP.member')",
+    "requiredPeerCount": 1,
+    "maxPeerCount": 1,
+    "blockToLive": 0,
+    "memberOnlyRead": true,
+    "memberOnlyWrite": true,
+    "endorsementPolicy": {
+      "signaturePolicy": "AND('SupplierMSP.peer', 'BuyerMSP.peer')"
+    }
+  },
+  {
+    "name": "collectionSupplierFinance",
+    "policy": "OR('SupplierMSP.member', 'FinanceMSP.member')",
+    "requiredPeerCount": 1,
+    "maxPeerCount": 1,
+    "blockToLive": 0,
+    "memberOnlyRead": true,
+    "memberOnlyWrite": true,
+    "endorsementPolicy": {
+      "signaturePolicy": "AND('SupplierMSP.peer', 'FinanceMSP.peer')"
+    }
+  }
+]

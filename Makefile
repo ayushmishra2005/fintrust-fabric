@@ -8,22 +8,27 @@ GO_VERSION         := 1.26.4
 
 NETWORK_DIR := network
 SCRIPTS_DIR := $(NETWORK_DIR)/scripts
+CHAINCODE_DIR := chaincode/invoice
 
-.PHONY: help check fmt network-up network-down network-reset network-status channel-create
+.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status
 
 help:
 	@echo "FinTrust Development Targets"
 	@echo ""
-	@echo "  make help           - Show this help"
-	@echo "  make check          - Run repository checks"
-	@echo "  make fmt            - Format shell scripts"
+	@echo "  make help             - Show this help"
+	@echo "  make check            - Run repository checks"
+	@echo "  make fmt              - Format shell scripts"
 	@echo ""
 	@echo "Network Targets:"
-	@echo "  make network-up     - Start Fabric network and create channel"
-	@echo "  make network-down   - Stop and remove containers"
-	@echo "  make network-reset  - Stop network and remove generated files"
-	@echo "  make network-status - Show network and channel status"
-	@echo "  make channel-create - Create and join fintrust channel"
+	@echo "  make network-up       - Start Fabric network and create channel"
+	@echo "  make network-down     - Stop and remove containers"
+	@echo "  make network-reset    - Stop network and remove generated files"
+	@echo "  make network-status   - Show network and channel status"
+	@echo "  make channel-create   - Create and join fintrust channel"
+	@echo ""
+	@echo "Chaincode Targets:"
+	@echo "  make chaincode-deploy - Package, install, approve, and commit chaincode"
+	@echo "  make chaincode-status - Show chaincode installation and commit status"
 	@echo ""
 	@echo "Pinned Versions:"
 	@echo "  Fabric:    $(FABRIC_VERSION)"
@@ -58,6 +63,12 @@ check:
 		echo "Skipped (docker compose not available)"; \
 	fi
 	@echo ""
+	@echo "Checking Go chaincode..."
+	@cd $(CHAINCODE_DIR) && go mod tidy && go fmt ./... && go vet ./... && echo "OK"
+	@echo ""
+	@echo "Running chaincode unit tests..."
+	@cd $(CHAINCODE_DIR) && go test -v ./...
+	@echo ""
 	@echo "All checks passed."
 
 fmt:
@@ -83,3 +94,9 @@ network-status:
 
 channel-create:
 	@$(SCRIPTS_DIR)/channel-create.sh
+
+chaincode-deploy:
+	@$(SCRIPTS_DIR)/chaincode-deploy.sh
+
+chaincode-status:
+	@$(SCRIPTS_DIR)/chaincode-status.sh

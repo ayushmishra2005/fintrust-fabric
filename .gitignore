@@ -35,6 +35,7 @@ go.work.sum
 # Chaincode packages
 *.tar.gz
 /chaincode/pkg/
+/network/chaincode-packages/
 
 # Private keys and certificates (never commit)
 *.pem
