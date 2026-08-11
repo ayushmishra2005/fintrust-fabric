@@ -1,0 +1,98 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Build output
+/bin/
+/dist/
+/build/
+
+# Hyperledger Fabric artifacts
+/network/organizations/
+/network/channel-artifacts/
+/network/system-genesis-block/
+*.block
+*.tx
+*.pb
+*.json.bak
+
+# Fabric CA
+/network/fabric-ca/
+**/ca-cert.pem
+**/fabric-ca-server.db
+**/IssuerPublicKey
+**/IssuerRevocationPublicKey
+**/msp/
+!**/msp/.gitkeep
+
+# Chaincode packages
+*.tar.gz
+/chaincode/pkg/
+
+# Private keys and certificates (never commit)
+*.pem
+*.key
+*.crt
+*.csr
+*_sk
+**/keystore/
+**/signcerts/
+**/tlscacerts/
+**/cacerts/
+**/admincerts/
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Logs
+*.log
+logs/
+
+# Test output
+/coverage/
+*.coverprofile
+coverage.out
+coverage.html
+
+# Temporary files
+tmp/
+temp/
+*.tmp
