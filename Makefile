@@ -9,8 +9,9 @@ GO_VERSION         := 1.26.4
 NETWORK_DIR := network
 SCRIPTS_DIR := $(NETWORK_DIR)/scripts
 CHAINCODE_DIR := chaincode/invoice
+E2E_DIR := test/e2e
 
-.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status
+.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status e2e verify-e2e
 
 help:
 	@echo "FinTrust Development Targets"
@@ -29,6 +30,10 @@ help:
 	@echo "Chaincode Targets:"
 	@echo "  make chaincode-deploy - Package, install, approve, and commit chaincode"
 	@echo "  make chaincode-status - Show chaincode installation and commit status"
+	@echo ""
+	@echo "Testing Targets:"
+	@echo "  make e2e              - Run E2E integration tests (requires running network)"
+	@echo "  make verify-e2e       - Full clean E2E verification cycle"
 	@echo ""
 	@echo "Pinned Versions:"
 	@echo "  Fabric:    $(FABRIC_VERSION)"
@@ -69,6 +74,9 @@ check:
 	@echo "Running chaincode unit tests..."
 	@cd $(CHAINCODE_DIR) && go test -v ./...
 	@echo ""
+	@echo "Checking E2E test module..."
+	@cd $(E2E_DIR) && go mod tidy && go fmt ./... && go vet ./... && echo "OK"
+	@echo ""
 	@echo "All checks passed."
 
 fmt:
@@ -100,3 +108,14 @@ chaincode-deploy:
 
 chaincode-status:
 	@$(SCRIPTS_DIR)/chaincode-status.sh
+
+e2e:
+	@echo "Running E2E integration tests..."
+	@cd $(E2E_DIR) && FINTRUST_E2E=1 go test -v -timeout 10m ./...
+
+verify-e2e:
+	@echo "=== Full E2E Verification Cycle ==="
+	@$(MAKE) network-reset || true
+	@$(MAKE) network-up
+	@$(MAKE) chaincode-deploy
+	@$(MAKE) e2e; E2E_RESULT=$$?; $(MAKE) network-down; exit $$E2E_RESULT

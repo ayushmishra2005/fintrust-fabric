@@ -277,6 +277,14 @@ func setTransient(ctx *mockTxContext, key string, value any) {
 	ctx.stub.transient[key] = data
 }
 
+func parseInvoice(t *testing.T, jsonStr string) *Invoice {
+	t.Helper()
+	var inv Invoice
+	err := json.Unmarshal([]byte(jsonStr), &inv)
+	require.NoError(t, err)
+	return &inv
+}
+
 func TestCreateInvoice_Valid(t *testing.T) {
 	ctx := newMockContext(SupplierMSP)
 	contract := &InvoiceContract{}
@@ -288,8 +296,9 @@ func TestCreateInvoice_Valid(t *testing.T) {
 	err := contract.CreateInvoice(ctx, invoiceID, BuyerMSP, "sha256:"+hex.EncodeToString(make([]byte, 32)))
 	require.NoError(t, err)
 
-	inv, err := contract.ReadPublicInvoice(ctx, invoiceID)
+	invJSON, err := contract.ReadPublicInvoice(ctx, invoiceID)
 	require.NoError(t, err)
+	inv := parseInvoice(t, invJSON)
 	assert.Equal(t, StatusCreated, inv.Status)
 	assert.Equal(t, SupplierMSP, inv.SupplierMSPID)
 	assert.NotNil(t, ctx.stub.events["InvoiceCreated"])
@@ -440,7 +449,8 @@ func TestApproveInvoice_Valid(t *testing.T) {
 	err := contract.ApproveInvoice(ctx, invoiceID)
 	require.NoError(t, err)
 
-	inv, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	invJSON, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	inv := parseInvoice(t, invJSON)
 	assert.Equal(t, StatusApproved, inv.Status)
 	assert.NotEmpty(t, inv.ApprovedAt)
 	assert.NotNil(t, ctx.stub.events["InvoiceApproved"])
@@ -483,7 +493,8 @@ func TestRejectInvoice_Valid(t *testing.T) {
 	err := contract.RejectInvoice(ctx, invoiceID)
 	require.NoError(t, err)
 
-	inv, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	invJSON, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	inv := parseInvoice(t, invJSON)
 	assert.Equal(t, StatusRejected, inv.Status)
 	assert.NotNil(t, ctx.stub.events["InvoiceRejected"])
 }
@@ -535,7 +546,8 @@ func TestRequestFinancing_Valid(t *testing.T) {
 	err := contract.RequestFinancing(ctx, invoiceID)
 	require.NoError(t, err)
 
-	inv, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	invJSON, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	inv := parseInvoice(t, invJSON)
 	assert.Equal(t, StatusFinancingRequested, inv.Status)
 	assert.NotNil(t, ctx.stub.events["FinancingRequested"])
 }
@@ -649,7 +661,8 @@ func TestFinanceInvoice_Valid(t *testing.T) {
 	err := contract.FinanceInvoice(ctx, invoiceID)
 	require.NoError(t, err)
 
-	inv, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	invJSON, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	inv := parseInvoice(t, invJSON)
 	assert.Equal(t, StatusFinanced, inv.Status)
 	assert.True(t, inv.Financed)
 	assert.Equal(t, FinanceMSP, inv.FinancierMSPID)
@@ -745,7 +758,8 @@ func TestSettleInvoice_Valid(t *testing.T) {
 	err := contract.SettleInvoice(ctx, invoiceID)
 	require.NoError(t, err)
 
-	inv, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	invJSON, _ := contract.ReadPublicInvoice(ctx, invoiceID)
+	inv := parseInvoice(t, invJSON)
 	assert.Equal(t, StatusSettled, inv.Status)
 	assert.NotNil(t, ctx.stub.events["InvoiceSettled"])
 }

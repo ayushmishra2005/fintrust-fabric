@@ -96,6 +96,17 @@ enroll_supplier() {
     -M "${org_dir}/users/Admin@supplierOrg/msp"
   write_node_ou_config "${org_dir}/users/Admin@supplierOrg/msp"
 
+  echo "Registering supplier-client..."
+  fabric-ca-client register --caname ca-supplier -u "$ca_url" \
+    --id.name supplier-client --id.secret clientpw --id.type client \
+    --tls.certfiles "$ca_cert" -M "${org_dir}/ca/admin"
+
+  echo "Enrolling supplier-client..."
+  fabric-ca-client enroll -u "https://supplier-client:clientpw@localhost:7054" \
+    --caname ca-supplier --tls.certfiles "$ca_cert" \
+    -M "${org_dir}/users/supplier-client/msp"
+  write_node_ou_config "${org_dir}/users/supplier-client/msp"
+
   mkdir -p "${org_dir}/tlsca"
   cp "${ca_dir}/ca-cert.pem" "${org_dir}/tlsca/tlsca-cert.pem"
   create_org_msp "$org_dir"
@@ -148,6 +159,17 @@ enroll_buyer() {
     -M "${org_dir}/users/Admin@buyerOrg/msp"
   write_node_ou_config "${org_dir}/users/Admin@buyerOrg/msp"
 
+  echo "Registering buyer-client..."
+  fabric-ca-client register --caname ca-buyer -u "$ca_url" \
+    --id.name buyer-client --id.secret clientpw --id.type client \
+    --tls.certfiles "$ca_cert" -M "${org_dir}/ca/admin"
+
+  echo "Enrolling buyer-client..."
+  fabric-ca-client enroll -u "https://buyer-client:clientpw@localhost:8054" \
+    --caname ca-buyer --tls.certfiles "$ca_cert" \
+    -M "${org_dir}/users/buyer-client/msp"
+  write_node_ou_config "${org_dir}/users/buyer-client/msp"
+
   mkdir -p "${org_dir}/tlsca"
   cp "${ca_dir}/ca-cert.pem" "${org_dir}/tlsca/tlsca-cert.pem"
   create_org_msp "$org_dir"
@@ -199,6 +221,17 @@ enroll_finance() {
     --caname ca-finance --tls.certfiles "$ca_cert" \
     -M "${org_dir}/users/Admin@financeOrg/msp"
   write_node_ou_config "${org_dir}/users/Admin@financeOrg/msp"
+
+  echo "Registering finance-client..."
+  fabric-ca-client register --caname ca-finance -u "$ca_url" \
+    --id.name finance-client --id.secret clientpw --id.type client \
+    --tls.certfiles "$ca_cert" -M "${org_dir}/ca/admin"
+
+  echo "Enrolling finance-client..."
+  fabric-ca-client enroll -u "https://finance-client:clientpw@localhost:9054" \
+    --caname ca-finance --tls.certfiles "$ca_cert" \
+    -M "${org_dir}/users/finance-client/msp"
+  write_node_ou_config "${org_dir}/users/finance-client/msp"
 
   mkdir -p "${org_dir}/tlsca"
   cp "${ca_dir}/ca-cert.pem" "${org_dir}/tlsca/tlsca-cert.pem"

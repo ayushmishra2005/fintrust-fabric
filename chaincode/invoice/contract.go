@@ -400,15 +400,22 @@ func (c *InvoiceContract) SettleInvoice(ctx contractapi.TransactionContextInterf
 	return emitEvent(ctx, "InvoiceSettled", invoice, ts, txID)
 }
 
-func (c *InvoiceContract) ReadPublicInvoice(ctx contractapi.TransactionContextInterface, invoiceID string) (*Invoice, error) {
+func (c *InvoiceContract) ReadPublicInvoice(ctx contractapi.TransactionContextInterface, invoiceID string) (string, error) {
 	if _, err := requireMSP(ctx, SupplierMSP, BuyerMSP, FinanceMSP); err != nil {
-		return nil, err
+		return "", err
 	}
 	canonicalID, err := canonicalizeInvoiceID(invoiceID)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return getInvoice(ctx, invoiceKey(canonicalID))
+	data, err := ctx.GetStub().GetState(invoiceKey(canonicalID))
+	if err != nil {
+		return "", fmt.Errorf("failed to read state: %w", err)
+	}
+	if data == nil {
+		return "", fmt.Errorf("invoice not found")
+	}
+	return string(data), nil
 }
 
 func (c *InvoiceContract) ReadPrivateInvoiceData(ctx contractapi.TransactionContextInterface, invoiceID string) (map[string]any, error) {

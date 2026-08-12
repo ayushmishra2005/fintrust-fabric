@@ -47,6 +47,22 @@ make chaincode-deploy  # Package, install, approve, and commit
 make chaincode-status  # Show installation and commit status
 ```
 
+## E2E Integration Tests
+
+Network-level tests verify security and concurrency properties:
+
+- Organization authorization enforcement
+- Private data isolation between parties
+- Invalid state transition prevention
+- Public block privacy (no transient/PDC leakage)
+- Double-financing prevention
+- Concurrent MVCC conflict handling
+
+```
+make e2e         # Run E2E tests (requires running network with deployed chaincode)
+make verify-e2e  # Full clean verification cycle: reset, up, deploy, test, down
+```
+
 ## Planned Architecture
 
 - Hyperledger Fabric 2.5 LTS
