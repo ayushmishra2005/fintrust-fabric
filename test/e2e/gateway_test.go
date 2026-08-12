@@ -480,7 +480,11 @@ func TestSequentialDoubleFinancing(t *testing.T) {
 	assert.Equal(t, "FinanceMSP", inv.FinancierMSPID)
 }
 
-func TestConcurrentDoubleFinancing_MVCC(t *testing.T) {
+// TestConcurrentFinanceSingleWinner verifies that concurrent FinanceInvoice calls
+// result in exactly one successful financing. The losing transaction fails with
+// ENDORSEMENT_POLICY_FAILURE because FinanceInvoice rotates the public invoice
+// SBE from Supplier+Finance to Buyer+Finance, invalidating the loser's endorsements.
+func TestConcurrentFinanceSingleWinner(t *testing.T) {
 	skipIfNoNetwork(t)
 
 	supplierConn, supplierGW := newGateway(t, supplierConfig())
@@ -495,7 +499,7 @@ func TestConcurrentDoubleFinancing_MVCC(t *testing.T) {
 	defer financeConn.Close()
 	defer financeGW.Close()
 
-	invoiceID := generateInvoiceID("E2E-MVCC")
+	invoiceID := generateInvoiceID("E2E-CONC-FIN")
 	suffix := invoiceID[len(invoiceID)-8:]
 	ct := makeCommercialTerms(invoiceID, suffix, 100000)
 	pd := makePaymentDetails(invoiceID, suffix)
@@ -512,15 +516,13 @@ func TestConcurrentDoubleFinancing_MVCC(t *testing.T) {
 	inv := readPublicInvoice(t, supplierContract, invoiceID)
 	require.Equal(t, "FINANCING_REQUESTED", inv.Status)
 
-	financeNetwork := financeGW.GetNetwork(channelName)
-	financeContract := financeNetwork.GetContract(chaincodeName)
+	financeContract := financeGW.GetNetwork(channelName).GetContract(chaincodeName)
 
 	fa1 := makeFinancingAgreement(invoiceID, suffix+"A", 75000)
 	fa2 := makeFinancingAgreement(invoiceID, suffix+"B", 74000)
 
 	ctx := context.Background()
 
-	// Build both proposals against the same ledger state
 	proposalA, err := financeContract.NewProposal("FinanceInvoice",
 		client.WithArguments(invoiceID),
 		client.WithTransient(map[string][]byte{"financing_agreement": mustJSON(fa1)}),
@@ -533,7 +535,6 @@ func TestConcurrentDoubleFinancing_MVCC(t *testing.T) {
 	)
 	require.NoError(t, err, "failed to create proposal B")
 
-	// Endorse both proposals before submitting either
 	txA, err := proposalA.Endorse()
 	require.NoError(t, err, "endorsement A failed")
 	t.Logf("Proposal A endorsed: txID=%s", txA.TransactionID())
@@ -542,14 +543,12 @@ func TestConcurrentDoubleFinancing_MVCC(t *testing.T) {
 	require.NoError(t, err, "endorsement B failed")
 	t.Logf("Proposal B endorsed: txID=%s", txB.TransactionID())
 
-	// Submit both transactions - Submit sends to orderer and returns immediately
 	commitA, err := txA.Submit()
 	require.NoError(t, err, "submit A failed")
 
 	commitB, err := txB.Submit()
 	require.NoError(t, err, "submit B failed")
 
-	// Wait for both commits
 	ctxTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
@@ -559,35 +558,132 @@ func TestConcurrentDoubleFinancing_MVCC(t *testing.T) {
 	t.Logf("Tx A status: code=%v, err=%v", statusA, errA)
 	t.Logf("Tx B status: code=%v, err=%v", statusB, errB)
 
-	// Determine which succeeded and which failed
 	aValid := errA == nil && statusA.Code == peer.TxValidationCode_VALID
 	bValid := errB == nil && statusB.Code == peer.TxValidationCode_VALID
 
-	// Transaction can fail with MVCC_READ_CONFLICT or ENDORSEMENT_POLICY_FAILURE
-	// ENDORSEMENT_POLICY_FAILURE can occur when SBE is rotated by the first tx
-	aInvalid := statusA.Code == peer.TxValidationCode_MVCC_READ_CONFLICT ||
-		statusA.Code == peer.TxValidationCode_ENDORSEMENT_POLICY_FAILURE
-	bInvalid := statusB.Code == peer.TxValidationCode_MVCC_READ_CONFLICT ||
-		statusB.Code == peer.TxValidationCode_ENDORSEMENT_POLICY_FAILURE
+	// Expected: loser fails with ENDORSEMENT_POLICY_FAILURE due to SBE rotation
+	aFailed := statusA.Code == peer.TxValidationCode_ENDORSEMENT_POLICY_FAILURE
+	bFailed := statusB.Code == peer.TxValidationCode_ENDORSEMENT_POLICY_FAILURE
 
-	// Exactly one should succeed, exactly one should fail
-	require.True(t, (aValid && bInvalid) || (bValid && aInvalid),
-		"expected exactly one VALID and one invalid: A=%v/%v B=%v/%v codes: A=%v B=%v",
-		aValid, aInvalid, bValid, bInvalid, statusA.Code, statusB.Code)
+	require.True(t, (aValid && bFailed) || (bValid && aFailed),
+		"expected one VALID and one ENDORSEMENT_POLICY_FAILURE: A=%v B=%v",
+		statusA.Code, statusB.Code)
 
 	if aValid {
-		t.Logf("Tx A: VALID")
-		t.Logf("Tx B: %v (concurrent conflict detected)", statusB.Code)
+		t.Log("Tx A: VALID")
+		t.Log("Tx B: ENDORSEMENT_POLICY_FAILURE (SBE rotated by first tx)")
 	} else {
-		t.Logf("Tx A: %v (concurrent conflict detected)", statusA.Code)
-		t.Logf("Tx B: VALID")
+		t.Log("Tx A: ENDORSEMENT_POLICY_FAILURE (SBE rotated by first tx)")
+		t.Log("Tx B: VALID")
 	}
 
-	// Verify final state
 	inv = readPublicInvoice(t, supplierContract, invoiceID)
 	assert.Equal(t, "FINANCED", inv.Status)
 	assert.True(t, inv.Financed)
 	assert.Equal(t, "FinanceMSP", inv.FinancierMSPID)
+}
+
+// TestConcurrentRequestFinancingMVCC demonstrates Fabric MVCC conflict detection.
+// Two RequestFinancing transactions endorsed against the same invoice version
+// both attempt to write the same key. The first committed wins; the second
+// receives MVCC_READ_CONFLICT because its read-set version is stale.
+func TestConcurrentRequestFinancingMVCC(t *testing.T) {
+	skipIfNoNetwork(t)
+
+	supplierConn, supplierGW := newGateway(t, supplierConfig())
+	defer supplierConn.Close()
+	defer supplierGW.Close()
+
+	buyerConn, buyerGW := newGateway(t, buyerConfig())
+	defer buyerConn.Close()
+	defer buyerGW.Close()
+
+	invoiceID := generateInvoiceID("E2E-MVCC")
+	suffix := invoiceID[len(invoiceID)-8:]
+	ct := makeCommercialTerms(invoiceID, suffix, 100000)
+	pd := makePaymentDetails(invoiceID, suffix)
+
+	supplierContract := supplierGW.GetNetwork(channelName).GetContract(chaincodeName)
+	buyerContract := buyerGW.GetNetwork(channelName).GetContract(chaincodeName)
+
+	createInvoice(t, supplierContract, invoiceID, generateDocHash(), ct, pd)
+	approveInvoice(t, buyerContract, invoiceID)
+
+	inv := readPublicInvoice(t, supplierContract, invoiceID)
+	require.Equal(t, "APPROVED", inv.Status)
+
+	frA := makeFinancingRequest(invoiceID, suffix+"A", 80000)
+	ddA := makeDisbursementDetails(invoiceID, suffix+"A")
+
+	frB := makeFinancingRequest(invoiceID, suffix+"B", 75000)
+	ddB := makeDisbursementDetails(invoiceID, suffix+"B")
+
+	ctx := context.Background()
+
+	proposalA, err := supplierContract.NewProposal("RequestFinancing",
+		client.WithArguments(invoiceID),
+		client.WithTransient(map[string][]byte{
+			"invoice_disclosure":   mustJSON(ct),
+			"financing_request":    mustJSON(frA),
+			"disbursement_details": mustJSON(ddA),
+		}),
+	)
+	require.NoError(t, err, "failed to create proposal A")
+
+	proposalB, err := supplierContract.NewProposal("RequestFinancing",
+		client.WithArguments(invoiceID),
+		client.WithTransient(map[string][]byte{
+			"invoice_disclosure":   mustJSON(ct),
+			"financing_request":    mustJSON(frB),
+			"disbursement_details": mustJSON(ddB),
+		}),
+	)
+	require.NoError(t, err, "failed to create proposal B")
+
+	txA, err := proposalA.Endorse()
+	require.NoError(t, err, "endorsement A failed")
+	t.Logf("Proposal A endorsed: txID=%s", txA.TransactionID())
+
+	txB, err := proposalB.Endorse()
+	require.NoError(t, err, "endorsement B failed")
+	t.Logf("Proposal B endorsed: txID=%s", txB.TransactionID())
+
+	commitA, err := txA.Submit()
+	require.NoError(t, err, "submit A failed")
+
+	commitB, err := txB.Submit()
+	require.NoError(t, err, "submit B failed")
+
+	ctxTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	statusA, errA := commitA.StatusWithContext(ctxTimeout)
+	statusB, errB := commitB.StatusWithContext(ctxTimeout)
+
+	t.Logf("Tx A status: code=%v, err=%v", statusA, errA)
+	t.Logf("Tx B status: code=%v, err=%v", statusB, errB)
+
+	aValid := errA == nil && statusA.Code == peer.TxValidationCode_VALID
+	bValid := errB == nil && statusB.Code == peer.TxValidationCode_VALID
+
+	aMVCC := statusA.Code == peer.TxValidationCode_MVCC_READ_CONFLICT
+	bMVCC := statusB.Code == peer.TxValidationCode_MVCC_READ_CONFLICT
+
+	require.True(t, (aValid && bMVCC) || (bValid && aMVCC),
+		"expected exactly one VALID and one MVCC_READ_CONFLICT: A=%v B=%v",
+		statusA.Code, statusB.Code)
+
+	if aValid {
+		t.Log("Tx A: VALID")
+		t.Log("Tx B: MVCC_READ_CONFLICT")
+	} else {
+		t.Log("Tx A: MVCC_READ_CONFLICT")
+		t.Log("Tx B: VALID")
+	}
+
+	inv = readPublicInvoice(t, supplierContract, invoiceID)
+	assert.Equal(t, "FINANCING_REQUESTED", inv.Status)
+	assert.False(t, inv.Financed)
 }
 
 func TestEventPayloadLeakage(t *testing.T) {

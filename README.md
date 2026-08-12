@@ -55,8 +55,8 @@ Network-level tests verify security and concurrency properties:
 - Private data isolation between parties
 - Invalid state transition prevention
 - Public block privacy (no transient/PDC leakage)
-- Double-financing prevention
-- Concurrent MVCC conflict handling
+- Double-financing prevention (single-winner under SBE)
+- MVCC read conflict detection for concurrent state updates
 
 ```
 make e2e         # Run E2E tests (requires running network with deployed chaincode)
