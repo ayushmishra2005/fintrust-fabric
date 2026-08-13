@@ -63,22 +63,81 @@ make e2e         # Run E2E tests (requires running network with deployed chainco
 make verify-e2e  # Full clean verification cycle: reset, up, deploy, test, down
 ```
 
-## Planned Architecture
+## REST API
 
-- Hyperledger Fabric 2.5 LTS
-- Go chaincode and API
+The Go backend provides organization-specific REST APIs using Fabric Gateway. Each organization runs its own API instance with non-admin client identities.
+
+Local ports:
+- Supplier API: 8081
+- Buyer API: 8082
+- Finance API: 8083
+
+Build and test:
+
+```
+make api-build   # Build the API binary
+make api-test    # Run backend unit tests
+```
+
+Manual verification (requires running network with deployed chaincode):
+
+```
+# Terminal 1: Start Supplier API
+FINTRUST_ORG=supplier FINTRUST_NETWORK_DIR=$PWD/network ./bin/fintrust-api
+
+# Terminal 2: Start Buyer API
+FINTRUST_ORG=buyer FINTRUST_NETWORK_DIR=$PWD/network ./bin/fintrust-api
+
+# Terminal 3: Start Finance API
+FINTRUST_ORG=finance FINTRUST_NETWORK_DIR=$PWD/network ./bin/fintrust-api
+
+# Terminal 4: Run smoke test
+./scripts/api-smoke.sh
+```
+
+API endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /healthz | Health check |
+| POST | /api/v1/invoices | Create invoice (Supplier) |
+| GET | /api/v1/invoices?status=X | Query by status |
+| GET | /api/v1/invoices/{id} | Get public invoice |
+| GET | /api/v1/invoices/{id}/private | Get private commercial data |
+| GET | /api/v1/invoices/{id}/financing | Get financing terms |
+| GET | /api/v1/invoices/{id}/events | Get invoice events |
+| POST | /api/v1/invoices/{id}/approve | Approve (Buyer) |
+| POST | /api/v1/invoices/{id}/reject | Reject (Buyer) |
+| POST | /api/v1/invoices/{id}/financing-request | Request financing (Supplier) |
+| POST | /api/v1/invoices/{id}/finance | Finance (Finance) |
+| POST | /api/v1/invoices/{id}/settle | Settle (Buyer) |
+| GET | /api/v1/events | Query event projection |
+
+Confidential data is submitted via transient fields and stored in private data collections.
+
+## Event Projection
+
+The API subscribes to chaincode events and projects them into SQLite for efficient querying. On startup, the consumer resumes from its last checkpoint, replaying any missed events. Idempotent inserts prevent duplicates after restarts.
+
+Projected events: InvoiceCreated, InvoiceApproved, InvoiceRejected, FinancingRequested, InvoiceFinanced, InvoiceSettled
+
+## Architecture
+
+- Hyperledger Fabric 2.5 LTS with Fabric CA
+- Go chaincode with MSP-based authorization
 - Three member organizations: SupplierMSP, BuyerMSP, FinanceMSP
-- Single Fabric channel
+- Single `fintrust` channel with Raft ordering
 - Private data collections for confidential invoice and financing data
-- Transient data for sensitive inputs
+- Transient data for sensitive inputs (never logged or committed publicly)
+- State-based endorsement for lifecycle-phase security
 - Fabric Gateway for client connectivity
 - CouchDB for rich queries
 - Chaincode events for off-chain projection
-- SQLite read model for API queries
+- SQLite read model for API queries with checkpoint-based resume
 
 ## Status
 
-Under active implementation.
+Core implementation complete. Under active development.
 
 ## License
 

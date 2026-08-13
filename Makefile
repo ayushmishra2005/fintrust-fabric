@@ -10,8 +10,9 @@ NETWORK_DIR := network
 SCRIPTS_DIR := $(NETWORK_DIR)/scripts
 CHAINCODE_DIR := chaincode/invoice
 E2E_DIR := test/e2e
+BACKEND_DIR := backend
 
-.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status e2e verify-e2e
+.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status e2e verify-e2e api-build api-test api-smoke verify-api
 
 help:
 	@echo "FinTrust Development Targets"
@@ -34,6 +35,12 @@ help:
 	@echo "Testing Targets:"
 	@echo "  make e2e              - Run E2E integration tests (requires running network)"
 	@echo "  make verify-e2e       - Full clean E2E verification cycle"
+	@echo ""
+	@echo "API Targets:"
+	@echo "  make api-build        - Build the API binary"
+	@echo "  make api-test         - Run backend unit tests"
+	@echo "  make api-smoke        - Run HTTP smoke test (requires running APIs)"
+	@echo "  make verify-api       - Full API verification cycle"
 	@echo ""
 	@echo "Pinned Versions:"
 	@echo "  Fabric:    $(FABRIC_VERSION)"
@@ -77,6 +84,12 @@ check:
 	@echo "Checking E2E test module..."
 	@cd $(E2E_DIR) && go mod tidy && go fmt ./... && go vet ./... && echo "OK"
 	@echo ""
+	@echo "Checking backend module..."
+	@cd $(BACKEND_DIR) && go mod tidy && go fmt ./... && go vet ./... && echo "OK"
+	@echo ""
+	@echo "Running backend unit tests..."
+	@cd $(BACKEND_DIR) && go test -v ./...
+	@echo ""
 	@echo "All checks passed."
 
 fmt:
@@ -119,3 +132,37 @@ verify-e2e:
 	@$(MAKE) network-up
 	@$(MAKE) chaincode-deploy
 	@$(MAKE) e2e; E2E_RESULT=$$?; $(MAKE) network-down; exit $$E2E_RESULT
+
+api-build:
+	@echo "Building API..."
+	@cd $(BACKEND_DIR) && go build -o ../bin/fintrust-api ./cmd/fintrust-api
+
+api-test:
+	@echo "Running backend tests..."
+	@cd $(BACKEND_DIR) && go test -v ./...
+
+api-smoke:
+	@echo "Running API smoke test..."
+	@bash scripts/api-smoke.sh
+
+verify-api:
+	@echo "=== Full API Verification Cycle ==="
+	@$(MAKE) network-reset || true
+	@$(MAKE) network-up
+	@$(MAKE) chaincode-deploy
+	@echo "Warming up chaincode containers (running first E2E test)..."
+	@cd $(E2E_DIR) && go clean -testcache && FINTRUST_E2E=1 go test -v -run TestHappyPath -timeout 5m ./... 2>&1 | tail -10 || true
+	@$(MAKE) api-build
+	@rm -f fintrust-supplier.db fintrust-buyer.db fintrust-finance.db
+	@echo "Starting APIs..."
+	@FINTRUST_ORG=supplier FINTRUST_NETWORK_DIR=$(PWD)/network ./bin/fintrust-api &
+	@FINTRUST_ORG=buyer FINTRUST_NETWORK_DIR=$(PWD)/network ./bin/fintrust-api &
+	@FINTRUST_ORG=finance FINTRUST_NETWORK_DIR=$(PWD)/network ./bin/fintrust-api &
+	@echo "Waiting for APIs..."
+	@sleep 5
+	@$(MAKE) api-smoke; SMOKE_RESULT=$$?; \
+		pkill -f fintrust-api || true; \
+		sleep 1; \
+		rm -f fintrust-supplier.db fintrust-buyer.db fintrust-finance.db; \
+		$(MAKE) network-down; \
+		exit $$SMOKE_RESULT
