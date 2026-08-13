@@ -86,6 +86,8 @@ docker-compose.override.yml
 # Logs
 *.log
 logs/
+.api-logs/
+.demo-logs/
 
 # Test output
 /coverage/

@@ -12,7 +12,7 @@ CHAINCODE_DIR := chaincode/invoice
 E2E_DIR := test/e2e
 BACKEND_DIR := backend
 
-.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status e2e verify-e2e api-build api-test api-smoke verify-api
+.PHONY: help check fmt network-up network-down network-reset network-status channel-create chaincode-deploy chaincode-status e2e verify-e2e api-build api-test api-smoke verify-api demo
 
 help:
 	@echo "FinTrust Development Targets"
@@ -41,6 +41,9 @@ help:
 	@echo "  make api-test         - Run backend unit tests"
 	@echo "  make api-smoke        - Run HTTP smoke test (requires running APIs)"
 	@echo "  make verify-api       - Full API verification cycle"
+	@echo ""
+	@echo "Demo:"
+	@echo "  make demo             - Run complete demo (network, chaincode, APIs, lifecycle)"
 	@echo ""
 	@echo "Pinned Versions:"
 	@echo "  Fabric:    $(FABRIC_VERSION)"
@@ -154,3 +157,6 @@ verify-api:
 	@bash scripts/api-verify.sh; RESULT=$$?; \
 		$(MAKE) network-down; \
 		exit $$RESULT
+
+demo:
+	@bash scripts/demo.sh
