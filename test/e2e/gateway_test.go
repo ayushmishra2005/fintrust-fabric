@@ -889,3 +889,24 @@ func TestSettleInvoiceTwice(t *testing.T) {
 	inv := readPublicInvoice(t, supplierContract, invoiceID)
 	assert.Equal(t, "SETTLED", inv.Status)
 }
+
+func TestChaincodeReady(t *testing.T) {
+	skipIfNoNetwork(t)
+
+	supplierConn, supplierGW := newGateway(t, supplierConfig())
+	defer supplierConn.Close()
+	defer supplierGW.Close()
+
+	contract := supplierGW.GetNetwork(channelName).GetContract(chaincodeName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := contract.EvaluateWithContext(ctx, "ReadPublicInvoice", client.WithArguments("nonexistent-probe"))
+	if err == nil {
+		t.Fatal("expected error for nonexistent invoice")
+	}
+	if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("unexpected error (chaincode may not be ready): %v", err)
+	}
+}

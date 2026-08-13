@@ -111,8 +111,8 @@ func (s *Store) InsertEventAndCheckpoint(ctx context.Context, blockNum uint64, t
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO invoice_events 
-			(block_number, transaction_id, event_name, invoice_id, status, 
+		INSERT INTO invoice_events
+			(block_number, transaction_id, event_name, invoice_id, status,
 			 supplier_msp_id, buyer_msp_id, financier_msp_id, event_timestamp, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(transaction_id, event_name) DO NOTHING

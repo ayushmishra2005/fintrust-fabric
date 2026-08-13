@@ -109,10 +109,11 @@ func consumeEvents(ctx context.Context, fc *fabric.Client, store *projection.Sto
 
 	var startBlock uint64
 	if exists {
-		// Resume from block after checkpoint to avoid reprocessing
-		startBlock = checkpoint + 1
+		// Resume from checkpoint block (not checkpoint+1) to handle partial block processing.
+		// If the process crashes after processing some events in a block but before others,
+		// we replay the block. Idempotent inserts (ON CONFLICT DO NOTHING) skip duplicates.
+		startBlock = checkpoint
 	} else {
-		// Fresh start: begin from block 0 to replay all events
 		startBlock = 0
 	}
 

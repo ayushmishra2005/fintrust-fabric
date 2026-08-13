@@ -150,19 +150,7 @@ verify-api:
 	@$(MAKE) network-reset || true
 	@$(MAKE) network-up
 	@$(MAKE) chaincode-deploy
-	@echo "Warming up chaincode containers (running first E2E test)..."
-	@cd $(E2E_DIR) && go clean -testcache && FINTRUST_E2E=1 go test -v -run TestHappyPath -timeout 5m ./... 2>&1 | tail -10 || true
 	@$(MAKE) api-build
-	@rm -f fintrust-supplier.db fintrust-buyer.db fintrust-finance.db
-	@echo "Starting APIs..."
-	@FINTRUST_ORG=supplier FINTRUST_NETWORK_DIR=$(PWD)/network ./bin/fintrust-api &
-	@FINTRUST_ORG=buyer FINTRUST_NETWORK_DIR=$(PWD)/network ./bin/fintrust-api &
-	@FINTRUST_ORG=finance FINTRUST_NETWORK_DIR=$(PWD)/network ./bin/fintrust-api &
-	@echo "Waiting for APIs..."
-	@sleep 5
-	@$(MAKE) api-smoke; SMOKE_RESULT=$$?; \
-		pkill -f fintrust-api || true; \
-		sleep 1; \
-		rm -f fintrust-supplier.db fintrust-buyer.db fintrust-finance.db; \
+	@bash scripts/api-verify.sh; RESULT=$$?; \
 		$(MAKE) network-down; \
-		exit $$SMOKE_RESULT
+		exit $$RESULT

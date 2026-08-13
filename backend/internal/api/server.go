@@ -10,6 +10,7 @@ import (
 
 	"github.com/fintrust-fabric/backend/internal/fabric"
 	"github.com/fintrust-fabric/backend/internal/projection"
+	fabric_client "github.com/hyperledger/fabric-gateway/pkg/client"
 )
 
 const maxBodySize = 64 * 1024
@@ -91,9 +92,10 @@ func (s *Server) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	canonicalID := strings.ToUpper(strings.TrimSpace(req.InvoiceID))
 	ct := map[string]any{
 		"schemaVersion": "1.0",
-		"invoiceId":     req.InvoiceID,
+		"invoiceId":     canonicalID,
 		"amountMinor":   req.Commercial.AmountMinor,
 		"currency":      req.Commercial.Currency,
 		"dueDate":       req.Commercial.DueDate,
@@ -101,7 +103,7 @@ func (s *Server) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 		"salt":          req.Commercial.Salt,
 	}
 	pd := map[string]any{
-		"invoiceId":         req.InvoiceID,
+		"invoiceId":         canonicalID,
 		"accountName":       req.Payment.AccountName,
 		"bankName":          req.Payment.BankName,
 		"accountIdentifier": req.Payment.AccountIdentifier,
@@ -290,9 +292,10 @@ func (s *Server) handleRequestFinancing(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	canonicalID := strings.ToUpper(strings.TrimSpace(id))
 	disclosure := map[string]any{
 		"schemaVersion": "1.0",
-		"invoiceId":     id,
+		"invoiceId":     canonicalID,
 		"amountMinor":   req.Disclosure.AmountMinor,
 		"currency":      req.Disclosure.Currency,
 		"dueDate":       req.Disclosure.DueDate,
@@ -300,13 +303,13 @@ func (s *Server) handleRequestFinancing(w http.ResponseWriter, r *http.Request) 
 		"salt":          req.Disclosure.Salt,
 	}
 	fr := map[string]any{
-		"invoiceId":            id,
+		"invoiceId":            canonicalID,
 		"requestedAmountMinor": req.Request.RequestedAmountMinor,
 		"requestedTenor":       req.Request.RequestedTenor,
 		"salt":                 req.Request.Salt,
 	}
 	dd := map[string]any{
-		"invoiceId":         id,
+		"invoiceId":         canonicalID,
 		"accountName":       req.Disbursement.AccountName,
 		"bankName":          req.Disbursement.BankName,
 		"accountIdentifier": req.Disbursement.AccountIdentifier,
@@ -363,8 +366,9 @@ func (s *Server) handleFinance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	canonicalID := strings.ToUpper(strings.TrimSpace(id))
 	fa := map[string]any{
-		"invoiceId":           id,
+		"invoiceId":           canonicalID,
 		"financedAmountMinor": req.Agreement.FinancedAmountMinor,
 		"discountBps":         req.Agreement.DiscountBps,
 		"maturityTerms":       req.Agreement.MaturityTerms,
@@ -432,8 +436,9 @@ func (s *Server) handleGetInvoiceEvents(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	canonicalID := strings.ToUpper(strings.TrimSpace(id))
 	filter := projection.EventFilter{
-		InvoiceID: id,
+		InvoiceID: canonicalID,
 		Limit:     100,
 	}
 
@@ -494,5 +499,11 @@ func handleFabricError(w http.ResponseWriter, err error) {
 	}
 
 	log.Printf("fabric error: %v", err)
+	if endorseErr, ok := err.(*fabric_client.EndorseError); ok {
+		st := endorseErr.GRPCStatus()
+		for _, detail := range st.Details() {
+			log.Printf("endorsement detail: %+v", detail)
+		}
+	}
 	writeError(w, http.StatusBadGateway, "transaction failed")
 }

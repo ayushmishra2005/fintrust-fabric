@@ -77,22 +77,16 @@ Build and test:
 ```
 make api-build   # Build the API binary
 make api-test    # Run backend unit tests
+make verify-api  # Full verification: network reset, chaincode deploy, API tests, checkpoint restart test, cleanup
 ```
 
-Manual verification (requires running network with deployed chaincode):
+For manual development (requires running network with deployed chaincode):
 
 ```
-# Terminal 1: Start Supplier API
+# Start APIs in separate terminals
 FINTRUST_ORG=supplier FINTRUST_NETWORK_DIR=$PWD/network ./bin/fintrust-api
-
-# Terminal 2: Start Buyer API
 FINTRUST_ORG=buyer FINTRUST_NETWORK_DIR=$PWD/network ./bin/fintrust-api
-
-# Terminal 3: Start Finance API
 FINTRUST_ORG=finance FINTRUST_NETWORK_DIR=$PWD/network ./bin/fintrust-api
-
-# Terminal 4: Run smoke test
-./scripts/api-smoke.sh
 ```
 
 API endpoints:
@@ -117,7 +111,7 @@ Confidential data is submitted via transient fields and stored in private data c
 
 ## Event Projection
 
-The API subscribes to chaincode events and projects them into SQLite for efficient querying. On startup, the consumer resumes from its last checkpoint, replaying any missed events. Idempotent inserts prevent duplicates after restarts.
+The API subscribes to chaincode events and projects them into SQLite for efficient querying. On startup, the consumer resumes from its last checkpoint block, replaying the block to handle partial processing. Idempotent inserts (`ON CONFLICT DO NOTHING`) prevent duplicates. The `make verify-api` target includes a real checkpoint restart test that stops the consumer, commits new Fabric transactions while offline, restarts, and verifies event catch-up without duplicates.
 
 Projected events: InvoiceCreated, InvoiceApproved, InvoiceRejected, FinancingRequested, InvoiceFinanced, InvoiceSettled
 
